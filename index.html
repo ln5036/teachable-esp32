@@ -1,104 +1,98 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <title>AI ESP32 Control</title>
+    <meta charset="UTF-8">
+    <title>AI → Adafruit → ESP32</title>
 
-  <!-- LOAD THƯ VIỆN CHUẨN -->
-  <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5"></script>
+    <!-- TensorFlow -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
 
-  <style>
-    body {
-      text-align: center;
-      font-family: Arial;
-    }
-    canvas {
-      margin-top: 10px;
-    }
-  </style>
+    <!-- Teachable Machine -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5"></script>
+
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial;
+        }
+        canvas {
+            margin-top: 10px;
+        }
+    </style>
 </head>
 
-<body>
+
+  <body>
 
 <h2>Teachable Machine → Adafruit → ESP32</h2>
+
 <button id="startBtn">Start Camera</button>
 
 <p id="result">Waiting...</p>
 
-<script>
-// ===== CONFIG =====
-const URL = "https://teachablemachine.withgoogle.com/models/FX7M1MGaT/";
-const USERNAME = "PhuNguyenLe";
-const AIO_KEY = "aio_JVwD80WfwzWBIRrbn96M6bJhgv6o"; // 🔥 DÁN KEY
-const FEED = "led";
+    <script>
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/FX7M1MGaT/";
 
-// ===== VAR =====
-let model, webcam;
+const USERNAME = "PhuNguyenLe";
+const AIO_KEY  = "aio_JVwD80WfwzWBIRrbn96M6bJhgv6o";   // 🔴 BẮT BUỘC THAY
+const FEED     = "led";
+
+let model;
+let webcam;
+
 let lastSent = "";
 let lastTime = 0;
-
-// ===== WAIT LOAD LIB =====
-document.getElementById("startBtn").addEventListener("click", async () => {
-
-    let wait = setInterval(() => {
+document.getElementById("startBtn").onclick = () => {
+    const wait = setInterval(() => {
         if (typeof tmImage !== "undefined") {
             clearInterval(wait);
             init();
-        } else {
-            console.log("Đang chờ load thư viện...");
         }
     }, 200);
+};
 
-});
 
-// ===== INIT =====
-async function init() {
+    async function init() {
     try {
-        console.log("Loading model...");
-        model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+        model = await tmImage.load(
+            MODEL_URL + "model.json",
+            MODEL_URL + "metadata.json"
+        );
 
-        console.log("Opening camera...");
         webcam = new tmImage.Webcam(300, 300, true);
         await webcam.setup();
         await webcam.play();
 
         document.body.appendChild(webcam.canvas);
 
-        console.log("Camera OK");
         loop();
 
-    } catch (e) {
-        console.error(e);
-        alert("Lỗi: " + e.message);
+    } catch (err) {
+        console.error(err);
+        alert("Lỗi: " + err.message);
     }
 }
 
-// ===== LOOP =====
 async function loop() {
     webcam.update();
 
-    const prediction = await model.predict(webcam.canvas);
+    const predictions = await model.predict(webcam.canvas);
 
-    let best = prediction.reduce((a,b)=>a.probability>b.probability?a:b);
-
-    console.log("Detected:", best.className);
+    const best = predictions.reduce((a, b) =>
+        a.probability > b.probability ? a : b
+    );
 
     document.getElementById("result").innerText =
         best.className + " (" + best.probability.toFixed(2) + ")";
 
-    let now = Date.now();
+    const now = Date.now();
 
-    if (best.probability > 0.9 &&
+    if (
+        best.probability > 0.9 &&
         best.className !== lastSent &&
-        now - lastTime > 2000) {
-
-        // 🔥 SỬA ĐÚNG TÊN CLASS
-        if (best.className === "Class 1") {
-            send("1");
-        } else if (best.className === "Class 4") {
-            send("0");
-        }
+        now - lastTime > 2000
+    ) {
+        handleClass(best.className);
 
         lastSent = best.className;
         lastTime = now;
@@ -107,13 +101,23 @@ async function loop() {
     requestAnimationFrame(loop);
 }
 
-// ===== SEND =====
-function send(value) {
-    console.log("Sending:", value);
+
+      function handleClass(name) {
+
+    if (name === "Class 1") {
+        send("1");   // bật
+    }
+
+    if (name === "Class 4") {
+        send("0");   // tắt
+    }
+}
+
+
+      function send(value) {
 
     fetch(`https://io.adafruit.com/api/v2/${USERNAME}/feeds/${FEED}/data`, {
         method: "POST",
-        mode: "cors",
         headers: {
             "X-AIO-Key": AIO_KEY,
             "Content-Type": "application/json"
@@ -121,10 +125,19 @@ function send(value) {
         body: JSON.stringify({ value: value })
     })
     .then(res => res.text())
-    .then(data => console.log("Response:", data))
-    .catch(err => console.error("Send error:", err));
+    .then(data => console.log("Sent:", value, "|", data))
+    .catch(err => console.error("Error:", err));
 }
-</script>
 
+
+      
+</script>
 </body>
 </html>
+      
+
+      
+
+
+      
+      
