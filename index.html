@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI ESP32 Control</title>
+
+  <!-- CDN chuẩn -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
+
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial;
+    }
+    canvas {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>Teachable Machine → Adafruit → ESP32</h2>
+<button onclick="init()">Start Camera</button>
+
+<p id="result">Waiting...</p>
+
+<script>
+// ===== CONFIG =====
+const URL = "https://teachablemachine.withgoogle.com/models/FX7M1MGaT/";
+const USERNAME = "PhuNguyenLe";
+const AIO_KEY = "aio_JVwD80WfwzWBIRrbn96M6bJhgv6o"; // 🔥 DÁN KEY MỚI
+const FEED = "led";
+
+// ===== VAR =====
+let model, webcam;
+let lastSent = "";
+let lastTime = 0;
+
+// ===== INIT =====
+async function init() {
+    try {
+        console.log("Checking tmImage...");
+
+        if (typeof tmImage === "undefined") {
+            alert("Chưa load thư viện!");
+            return;
+        }
+
+        console.log("Loading model...");
+        model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+
+        console.log("Opening camera...");
+        webcam = new tmImage.Webcam(300, 300, true);
+        await webcam.setup();
+        await webcam.play();
+
+        document.body.appendChild(webcam.canvas);
+
+        console.log("Camera OK");
+        loop();
+
+    } catch (e) {
+        console.error(e);
+        alert("Lỗi: " + e.message);
+    }
+}
+
+// ===== LOOP =====
+async function loop() {
+    webcam.update();
+
+    const prediction = await model.predict(webcam.canvas);
+
+    let best = prediction.reduce((a,b)=>a.probability>b.probability?a:b);
+
+    console.log("Detected:", best.className);
+
+    document.getElementById("result").innerText =
+        best.className + " (" + best.probability.toFixed(2) + ")";
+
+    let now = Date.now();
+
+    if (best.probability > 0.9 &&
+        best.className !== lastSent &&
+        now - lastTime > 2000) {
+
+        // 🔥 SỬA ĐÚNG TÊN CLASS CỦA BẠN
+        if (best.className === "Class 1") {
+            send("1"); // bật
+        } else if (best.className === "Class 4") {
+            send("0"); // tắt
+        }
+
+        lastSent = best.className;
+        lastTime = now;
+    }
+
+    requestAnimationFrame(loop);
+}
+
+// ===== SEND =====
+function send(value) {
+    console.log("Sending:", value);
+
+    fetch(`https://io.adafruit.com/api/v2/${USERNAME}/feeds/${FEED}/data`, {
+        method: "POST",
+        mode: "cors",
+        headers: {
+            "X-AIO-Key": AIO_KEY,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ value: value })
+    })
+    .then(res => res.text())
+    .then(data => console.log("Response:", data))
+    .catch(err => console.error("Send error:", err));
+}
+</script>
+
+</body>
+</html>
