@@ -1,143 +1,102 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>AI → Adafruit → ESP32</title>
+<meta charset="UTF-8">
+<title>AI → Adafruit</title>
 
-    <!-- TensorFlow -->
-    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5"></script>
 
-    <!-- Teachable Machine -->
-    <script defer src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5"></script>
-
-    <style>
-        body {
-            text-align: center;
-            font-family: Arial;
-        }
-        canvas {
-            margin-top: 10px;
-        }
-    </style>
+<style>
+body { text-align:center; font-family:Arial; }
+</style>
 </head>
 
+<body>
 
-  <body>
+<h2>AI → Adafruit IO</h2>
+<button onclick="start()">START</button>
+<p id="kq">...</p>
 
-<h2>Teachable Machine → Adafruit → ESP32</h2>
-
-<button id="startBtn">Start Camera</button>
-
-<p id="result">Waiting...</p>
-
-    <script>
+<script>
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/FX7M1MGaT/";
 
 const USERNAME = "PhuNguyenLe";
-const AIO_KEY  = "aio_JVwD80WfwzWBIRrbn96M6bJhgv6o";   // 🔴 BẮT BUỘC THAY
+const AIO_KEY  = "THAY_KEY_MOI";
 const FEED     = "led";
 
-let model;
-let webcam;
+let model, cam;
+let last = "";
+let t = 0;
 
-let lastSent = "";
-let lastTime = 0;
-document.getElementById("startBtn").onclick = () => {
-    const wait = setInterval(() => {
-        if (typeof tmImage !== "undefined") {
-            clearInterval(wait);
-            init();
-        }
-    }, 200);
-};
+async function start() {
 
+    model = await tmImage.load(
+        MODEL_URL + "model.json",
+        MODEL_URL + "metadata.json"
+    );
 
-    async function init() {
-    try {
-        model = await tmImage.load(
-            MODEL_URL + "model.json",
-            MODEL_URL + "metadata.json"
-        );
+    cam = new tmImage.Webcam(300,300,true);
+    await cam.setup();
+    await cam.play();
 
-        webcam = new tmImage.Webcam(300, 300, true);
-        await webcam.setup();
-        await webcam.play();
+    document.body.appendChild(cam.canvas);
 
-        document.body.appendChild(webcam.canvas);
-
-        loop();
-
-    } catch (err) {
-        console.error(err);
-        alert("Lỗi: " + err.message);
-    }
+    loop();
 }
 
 async function loop() {
-    webcam.update();
 
-    const predictions = await model.predict(webcam.canvas);
+    cam.update();
 
-    const best = predictions.reduce((a, b) =>
-        a.probability > b.probability ? a : b
+    let p = await model.predict(cam.canvas);
+
+    let best = p.reduce((a,b)=>
+        a.probability>b.probability?a:b
     );
 
-    document.getElementById("result").innerText =
-        best.className + " (" + best.probability.toFixed(2) + ")";
+    document.getElementById("kq").innerText =
+        best.className + " " + best.probability.toFixed(2);
 
-    const now = Date.now();
+    let now = Date.now();
 
-    if (
-        best.probability > 0.9 &&
-        best.className !== lastSent &&
-        now - lastTime > 2000
-    ) {
-        handleClass(best.className);
+    if(best.probability > 0.8 && now - t > 2000){
 
-        lastSent = best.className;
-        lastTime = now;
+        if(best.className === "Class 1" && last !== "1"){
+            send("1");
+            last="1";
+            t=now;
+        }
+
+        if(best.className === "Class 4" && last !== "0"){
+            send("0");
+            last="0";
+            t=now;
+        }
     }
 
     requestAnimationFrame(loop);
 }
 
+function send(v){
 
-      function handleClass(name) {
-
-    if (name === "Class 1") {
-        send("1");   // bật
-    }
-
-    if (name === "Class 4") {
-        send("0");   // tắt
-    }
-}
-
-
-      function send(value) {
-
-    fetch(`https://io.adafruit.com/api/v2/${USERNAME}/feeds/${FEED}/data`, {
-        method: "POST",
-        headers: {
-            "X-AIO-Key": AIO_KEY,
-            "Content-Type": "application/json"
+    fetch(`https://io.adafruit.com/api/v2/${USERNAME}/feeds/${FEED}/data`,{
+        method:"POST",
+        headers:{
+            "X-AIO-Key":AIO_KEY,
+            "Content-Type":"application/json"
         },
-        body: JSON.stringify({ value: value })
+        body:JSON.stringify({value:v})
     })
-    .then(res => res.text())
-    .then(data => console.log("Sent:", value, "|", data))
-    .catch(err => console.error("Error:", err));
+    .then(r=>{
+        if(!r.ok) throw "ERR " + r.status;
+        return r.text();
+    })
+    .then(()=>console.log("SEND",v))
+    .catch(e=>console.error(e));
 }
 
-
-      
 </script>
+
 </body>
 </html>
-      
-
-      
-
-
-      
-      
