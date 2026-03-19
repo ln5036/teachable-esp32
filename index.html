@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <title>AI → Adafruit</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5"></script>
+<!-- load đúng thứ tự + defer -->
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5"></script>
 
 <style>
 body { text-align:center; font-family:Arial; }
@@ -15,35 +16,52 @@ body { text-align:center; font-family:Arial; }
 <body>
 
 <h2>AI → Adafruit IO</h2>
-<button onclick="start()">START</button>
+<button id="startBtn">START</button>
 <p id="kq">...</p>
 
 <script>
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/FX7M1MGaT/";
 
 const USERNAME = "PhuNguyenLe";
-const AIO_KEY  = "THAY_KEY_MOI";
+const AIO_KEY  = "aio_EsAF28Rxd0p7y2BnMsuPgSxwQdlZ";
 const FEED     = "led";
 
 let model, cam;
 let last = "";
 let t = 0;
 
-async function start() {
+// ✅ chỉ chạy khi mọi thứ load xong
+window.addEventListener("load", () => {
 
-    model = await tmImage.load(
-        MODEL_URL + "model.json",
-        MODEL_URL + "metadata.json"
-    );
+    document.getElementById("startBtn").onclick = async () => {
 
-    cam = new tmImage.Webcam(300,300,true);
-    await cam.setup();
-    await cam.play();
+        // nếu thư viện chưa load → báo luôn
+        if (!window.tmImage) {
+            alert("Chưa load xong thư viện, reload lại trang");
+            return;
+        }
 
-    document.body.appendChild(cam.canvas);
+        try {
+            model = await tmImage.load(
+                MODEL_URL + "model.json",
+                MODEL_URL + "metadata.json"
+            );
 
-    loop();
-}
+            cam = new tmImage.Webcam(300,300,true);
+            await cam.setup();
+            await cam.play();
+
+            document.body.appendChild(cam.canvas);
+
+            loop();
+
+        } catch(e) {
+            console.error(e);
+            alert("Lỗi load model/camera");
+        }
+    };
+
+});
 
 async function loop() {
 
@@ -95,7 +113,6 @@ function send(v){
     .then(()=>console.log("SEND",v))
     .catch(e=>console.error(e));
 }
-
 </script>
 
 </body>
